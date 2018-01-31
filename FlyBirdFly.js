@@ -150,4 +150,5 @@ function resetgamestate(){
 	gravity = -0.4;
 	yAcc = 0;
 	pipeCenters = [250, 250, 250, 250];
+	totalScore = 0;
 }
