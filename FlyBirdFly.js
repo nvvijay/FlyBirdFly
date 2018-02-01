@@ -5,17 +5,21 @@ var gravity = -0.4;
 
 //pipe state vairables
 var curCenter = 250;
-var pipeCenters = [250, 250, 250, 250];
+var pipeCenters = [250, 250, 250, 250, 250];
 var pipeSpeed = 5;
 var pipeGap = 200;
 var pipeDisp = 500+pipeGap;
-var pipeWidth = 10;
+var pipeWidth = 60;
 var pipeHole = 90;
 
 var isPaused = false;
 var isNewGame = true;
+var isSuspended = false;
+var suspendedYacc = 0;
 
 var totalScore = 0;
+var isDebug = false;
+
 function FlyBirdFly(element){
 
 	var canvas = document.getElementById(element);
@@ -40,7 +44,28 @@ function keydownhandler(e) {
     		resetgamestate();
     		isPaused = false;
 		}
-    	yAcc = 10;
+		if(!isSuspended){
+    		yAcc = 10;
+    	}
+    }else if(e.keyCode == 27){
+    	if(isSuspended){
+    		console.log("resuming game state");
+    		gravity = -0.4;
+    		isSuspended = false;
+    		yAcc = suspendedYacc;
+    		pipeSpeed = 5;
+    	}else{
+    		gravity = 0;
+    		console.log("Suspending game state");
+    		isSuspended = true;
+    		suspendedYacc = yAcc;
+    		yAcc = 0;
+    		pipeSpeed = 0;
+    	}
+    }else if(e.keyCode == 68){
+    	isDebug = !isDebug;
+    }else{
+    	console.log(e.keyCode);
     }
 }
 
@@ -54,6 +79,11 @@ function animate(ctx){
 		gravity = 0;
 		pipeDisp = 710;
 		ctx.fillText("Press SpaceBar to start!",180,250);
+	}
+
+	if(isSuspended){
+		ctx.fillText("Paused", 250,250);
+		ctx.fillText("Press Esc to resume!", 180,290);
 	}
 
 	if(isPaused){
@@ -77,7 +107,7 @@ function animate(ctx){
 
 		updatePipes();
 		drawpipe(ctx);
-		detectcollision();
+		detectcollision(ctx);
 
 		//print data values
 		var data = getdata();
@@ -118,7 +148,7 @@ function generatepipe(){
 	if(nextgap < 150 || nextgap > 400){
 		nextgap = pipeCenters[pipeCenters.length-1];
 	}
-	if(pipeCenters.length < 4){
+	if(pipeCenters.length < 5){
 		pipeCenters.push(nextgap);
 	}else{
 		pipeCenters.shift();
@@ -131,8 +161,23 @@ function randomgap(max, min){
     return Math.floor(Math.random()*(max-min+1)+min);
 }
 
-function detectcollision(){
-	if(90 < pipeDisp && pipeDisp < 110){
+function detectcollision(ctx){
+	if(isDebug){
+		if(Math.max(90, pipeDisp) < Math.min(110, pipeDisp+pipeWidth)){
+			ctx.fillStyle = 'red';
+		}else{
+			ctx.fillStyle = 'green';
+		}
+		ctx.globalAlpha = 0.5;
+		ctx.fillRect(90, 0, 20, 500);
+		ctx.fillStyle = 'blue';
+		ctx.fillRect(pipeDisp, 0, 2, 500);
+		ctx.fillRect(pipeDisp+pipeWidth, 0, 2, 500);
+		ctx.fillStyle = 'black';
+		ctx.globalAlpha = 1;
+	}
+	//max(min) < min(max) => collision
+	if(Math.max(90, pipeDisp) < Math.min(110, pipeDisp+pipeWidth)){
 		if(yPos-10 < pipeCenters[0]-pipeHole || yPos+10 > pipeCenters[0]+pipeHole){
 			console.log("game over");
 			pause();
