@@ -1,12 +1,12 @@
 //bird physics state variables
 var yPos = 250;
 var yAcc = 0;
-var gravity = -0.4;
+var gravity = 0;
 
 //pipe state vairables
 var curCenter = 250;
 var pipeCenters = [250, 250, 250, 250, 250];
-var pipeSpeed = 5;
+var pipeSpeed = 0;
 var pipeGap = 200;
 var pipeDisp = 500+pipeGap;
 var pipeWidth = 60;
@@ -28,7 +28,6 @@ function FlyBirdFly(element){
 	var ctx = canvas.getContext('2d');
 
 	animate(ctx);
-
 }
 
 window.addEventListener('keydown', keydownhandler ,false);
@@ -70,53 +69,21 @@ function keydownhandler(e) {
 }
 
 function animate(ctx){
-	ctx.font = "30px Ariel";
-	ctx.clearRect(0,0,700,500);
-	ctx.fillRect(0, 0, 20, 500);
-	ctx.fillRect(680, 0, 20, 500);
-
+	clearscreen(ctx);
 	if(isNewGame){
-		gravity = 0;
-		pipeDisp = 710;
-		ctx.fillText("Press SpaceBar to start!",180,250);
+		showtext(1, ctx);
+	}else if(isSuspended){
+		showtext(2, ctx);
 	}
-
-	if(isSuspended){
-		ctx.fillText("Paused", 250,250);
-		ctx.fillText("Press Esc to resume!", 180,290);
-	}
-
 	if(isPaused){
-		ctx.fillText("Game Over!", 250,210);
-		ctx.fillText("Score is :"+totalScore,250,250);
-		ctx.fillText("Press SpaceBar to start!", 180,290);
+		showtext(3, ctx);
 	}else{
-		//draw updated bird
-		yAcc = yAcc+gravity;
-		yPos = yPos - (yAcc);
-		ctx.beginPath();
-		ctx.arc(100,yPos,10,0,2*Math.PI);
-		ctx.fill();
-
-		if(yPos <0 || yPos > 500){
-			console.log("game over");
-			yAcc = 0;
-			gravity = 0;
-			pause();
-		}
-
+		updateBird();
 		updatePipes();
+		drawBird(ctx);
 		drawpipe(ctx);
 		detectcollision(ctx);
-
-		//print data values
-		var data = getdata();
-
-		var ele = document.getElementById("data");
-		var str = "<b> yPos: </b>"+data[0].toFixed(2)+" <b> yAcc: </b>"+data[1].toFixed(2)+"</br>";
-		str += "<b> pipeDisp: </b>"+data[2];
-		str += "<b> pipeCenters: </b>"+data[3];
-		ele.innerHTML = str;
+		printstatedata();
 	}
 	requestAnimationFrame(function(){animate(ctx);});
 }
@@ -125,12 +92,28 @@ function pause(){
 	isPaused = true;
 }
 
+function clearscreen(ctx){
+	ctx.clearRect(0,0,700,500);
+	ctx.fillRect(0, 0, 20, 500);
+	ctx.fillRect(680, 0, 20, 500);
+}
+function updateBird(){
+	yAcc = yAcc+gravity;
+	yPos = yPos - (yAcc);
+}
+
 function updatePipes(){
 	pipeDisp -= pipeSpeed;
 	if(pipeDisp < 0){
 		pipeDisp = pipeGap;
 		generatepipe();
 	}
+}
+
+function drawBird(ctx){
+	ctx.beginPath();
+	ctx.arc(100,yPos,10,0,2*Math.PI);
+	ctx.fill();
 }
 
 function drawpipe(ctx){
@@ -176,6 +159,14 @@ function detectcollision(ctx){
 		ctx.fillStyle = 'black';
 		ctx.globalAlpha = 1;
 	}
+	//collision with roof and floor
+	if(yPos <0 || yPos > 500){
+		console.log("game over");
+		yAcc = 0;
+		gravity = 0;
+		pause();
+	}
+	//collision with pipes
 	//max(min) < min(max) => collision
 	if(Math.max(90, pipeDisp) < Math.min(110, pipeDisp+pipeWidth)){
 		if(yPos-10 < pipeCenters[0]-pipeHole || yPos+10 > pipeCenters[0]+pipeHole){
@@ -185,12 +176,38 @@ function detectcollision(ctx){
 	}
 }
 
+function printstatedata(){
+	//print data values
+	var data = getdata();
+
+	var ele = document.getElementById("data");
+	var str = "<b> yPos: </b>"+data[0].toFixed(2)+" <b> yAcc: </b>"+data[1].toFixed(2)+"</br>";
+	str += "<b> pipeDisp: </b>"+data[2];
+	str += "<b> pipeCenters: </b>"+data[3];
+	ele.innerHTML = str;
+}
+
 function getdata(){
 	return [yPos, yAcc, pipeDisp, pipeCenters];
 }
 
+function showtext(type, ctx){
+	ctx.font = "30px Ariel";
+	if(type == 1){
+		ctx.fillText("Press SpaceBar to start!",180,250);
+	}else if(type == 2){
+		ctx.fillText("Paused", 250,250);
+		ctx.fillText("Press Esc to resume!", 180,290);
+	}else if(type == 3){
+		ctx.fillText("Game Over!", 250,210);
+		ctx.fillText("Score is :"+totalScore,250,250);
+		ctx.fillText("Press SpaceBar to start!", 180,290);
+	}
+}
+
 function resetgamestate(){
 	yPos = 250;
+	pipeSpeed = 5;
 	pipeDisp = 500+pipeGap;
 	gravity = -0.4;
 	yAcc = 0;
