@@ -5,10 +5,10 @@ var gravity = 0;
 
 //pipe state vairables
 var curCenter = 250;
-var pipeCenters = [250, 250, 250, 250, 250];
+var pipeCenters = [250, 250, 250, 250];
 var pipeSpeed = 0;
 var pipeGap = 200;
-var pipeDisp = 500+pipeGap;
+var pipeDisp = pipeGap;
 var pipeWidth = 60;
 var pipeHole = 90;
 
@@ -20,14 +20,21 @@ var suspendedYacc = 0;
 var totalScore = 0;
 var isDebug = false;
 
+var isTrain = true;
+var globalctx = 1;
 function FlyBirdFly(element){
 
 	var canvas = document.getElementById(element);
 	canvas.height = 500;
 	canvas.width = 700;
 	var ctx = canvas.getContext('2d');
-
-	animate(ctx);
+	if(!isTrain){
+		animate(ctx);
+	}else{
+		resetgamestate();
+		isNewGame = false;
+	}
+	globalctx = ctx;
 }
 
 window.addEventListener('keydown', keydownhandler ,false);
@@ -49,7 +56,7 @@ function keydownhandler(e) {
     }else if(e.keyCode == 27){
     	if(isSuspended){
     		console.log("resuming game state");
-    		gravity = -0.4;
+    		gravity = -0.6;
     		isSuspended = false;
     		yAcc = suspendedYacc;
     		pipeSpeed = 5;
@@ -63,6 +70,8 @@ function keydownhandler(e) {
     	}
     }else if(e.keyCode == 68){
     	isDebug = !isDebug;
+    }else if(e.keyCode == 84){
+    	isTrain = !isTrain;
     }else{
     	console.log(e.keyCode);
     }
@@ -85,7 +94,9 @@ function animate(ctx){
 		detectcollision(ctx);
 		printstatedata();
 	}
-	requestAnimationFrame(function(){animate(ctx);});
+	if(!isTrain){
+		requestAnimationFrame(function(){animate(ctx);});
+	}
 }
 
 function pause(){
@@ -131,7 +142,7 @@ function generatepipe(){
 	if(nextgap < 150 || nextgap > 400){
 		nextgap = pipeCenters[pipeCenters.length-1];
 	}
-	if(pipeCenters.length < 5){
+	if(pipeCenters.length < 4){
 		pipeCenters.push(nextgap);
 	}else{
 		pipeCenters.shift();
@@ -188,7 +199,7 @@ function printstatedata(){
 }
 
 function getdata(){
-	return [yPos, yAcc, pipeDisp, pipeCenters];
+	return [yPos, pipeCenters[0], pipeCenters[1], pipeCenters[2], pipeCenters[3], pipeDisp, isPaused, totalScore];
 }
 
 function showtext(type, ctx){
@@ -208,9 +219,76 @@ function showtext(type, ctx){
 function resetgamestate(){
 	yPos = 250;
 	pipeSpeed = 5;
-	pipeDisp = 500+pipeGap;
-	gravity = -0.4;
+	pipeDisp = pipeGap;
+	gravity = -0.6;
 	yAcc = 0;
 	pipeCenters = [250, 250, 250, 250];
 	totalScore = 0;
+}
+
+function nextframe(action){
+	if(action == 0){
+		yAcc = 10;
+	}
+	animate(globalctx);
+	return getdata();
+}
+
+
+//RL part
+var env = {};
+env.getNumStates = function() { 
+	//8 states - 
+	// * bird pos in Y-axis
+	// * pipe centers X 4
+	// * pipe displacement
+	// * game over state
+	// * total score
+	return 8; 
+}
+env.getMaxNumActions = function() { 
+	//2 actions - 0: do nothing, 1: jump.
+	return 2; 
+}
+
+// agent parameter spec to play with (this gets eval()'d on Agent reset)
+var spec = {}
+spec.update = 'qlearn'; // qlearn | sarsa
+spec.gamma = 0.9; // discount factor, [0, 1)
+spec.epsilon = 0.2; // initial epsilon for epsilon-greedy policy, [0, 1)
+spec.alpha = 0.05; // value function learning rate
+spec.experience_add_every = 1; // number of time steps before we add another experience to replay memory
+spec.experience_size = 1000; // size of experience
+spec.learning_steps_per_iteration = 5;
+spec.tderror_clamp = 1.0; // for robustness
+spec.num_hidden_units = 100 // number of neurons in hidden layer
+
+var agent = new RL.DQNAgent(env, spec); 
+
+var step = 0;
+var percentage = 50;
+function train(){
+	console.log("begun train");
+	var state = nextframe();
+	setInterval(function(){ // start the learning loop
+		var action = agent.act(state); // get prediction from current state
+		state = nextframe(action);
+		var reward = 0;
+		//reward is 50% of score obtained + 25% of horizontal gap close + 25% of vertical gap close.
+		reward = (state[7]*0.9) + (Math.abs(state[1]-state[0])*0.01);
+		if(action == 0){
+			percentage = percentage -1;
+		}else{
+			percentage = percentage +1;
+		}
+		console.log("reward for step "+step+" is : "+reward+" action is: "+action+" percentage : "+percentage);
+		if(state[6] == true){	//game over. negative reward and restet game state.
+			console.log("game over. starting over");
+			reward = -1000;
+			resetgamestate();
+			isPaused = false;
+		}
+		step = step+1;
+		agent.learn(reward); // the agent improves its Q,policy,model, etc. reward is a float
+	}, 0);
 }
