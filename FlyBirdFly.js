@@ -8,7 +8,7 @@ var curCenter = 250;
 var pipeCenters = [250, 250, 250, 250];
 var pipeSpeed = 0;
 var pipeGap = 200;
-var pipeDisp = pipeGap;
+var pipeDisp = 500+pipeGap;
 var pipeWidth = 60;
 var pipeHole = 90;
 
@@ -92,7 +92,7 @@ function animate(ctx){
 		drawBird(ctx);
 		drawpipe(ctx);
 		detectcollision(ctx);
-		printstatedata();
+		//printstatedata();
 	}
 	if(!isTrain){
 		requestAnimationFrame(function(){animate(ctx);});
@@ -199,7 +199,7 @@ function printstatedata(){
 }
 
 function getdata(){
-	return [yPos, pipeCenters[0], pipeCenters[1], pipeCenters[2], pipeCenters[3], pipeDisp, isPaused, totalScore];
+	return [yPos, pipeCenters[0], pipeCenters[1], pipeCenters[2], pipeCenters[3], pipeDisp, isPaused? 1: 0, totalScore];
 }
 
 function showtext(type, ctx){
@@ -219,7 +219,7 @@ function showtext(type, ctx){
 function resetgamestate(){
 	yPos = 250;
 	pipeSpeed = 5;
-	pipeDisp = pipeGap;
+	pipeDisp = 500+pipeGap;
 	gravity = -0.6;
 	yAcc = 0;
 	pipeCenters = [250, 250, 250, 250];
@@ -227,11 +227,11 @@ function resetgamestate(){
 }
 
 function nextframe(action){
-	if(action == 0){
+	if(action == 1){
 		yAcc = 10;
 	}
 	animate(globalctx);
-	return getdata();
+	return getdata().concat(action);
 }
 
 
@@ -244,7 +244,7 @@ env.getNumStates = function() {
 	// * pipe displacement
 	// * game over state
 	// * total score
-	return 8; 
+	return 9; 
 }
 env.getMaxNumActions = function() { 
 	//2 actions - 0: do nothing, 1: jump.
@@ -254,10 +254,10 @@ env.getMaxNumActions = function() {
 // agent parameter spec to play with (this gets eval()'d on Agent reset)
 var spec = {}
 spec.update = 'qlearn'; // qlearn | sarsa
-spec.gamma = 0.9; // discount factor, [0, 1)
-spec.epsilon = 0.2; // initial epsilon for epsilon-greedy policy, [0, 1)
+spec.gamma = 0.99; // discount factor, [0, 1)
+spec.epsilon = 0.01; // initial epsilon for epsilon-greedy policy, [0, 1)
 spec.alpha = 0.05; // value function learning rate
-spec.experience_add_every = 1; // number of time steps before we add another experience to replay memory
+spec.experience_add_every = 2; // number of time steps before we add another experience to replay memory
 spec.experience_size = 1000; // size of experience
 spec.learning_steps_per_iteration = 5;
 spec.tderror_clamp = 1.0; // for robustness
@@ -266,29 +266,44 @@ spec.num_hidden_units = 100 // number of neurons in hidden layer
 var agent = new RL.DQNAgent(env, spec); 
 
 var step = 0;
-var percentage = 50;
+var actionDeque = [];
+var percentage = 0;
+var generation = 0;
+var oldScore = 0;
 function train(){
 	console.log("begun train");
 	var state = nextframe();
 	setInterval(function(){ // start the learning loop
 		var action = agent.act(state); // get prediction from current state
+		actionDeque.push(action);
+		percentage += action;
+		if(actionDeque.length>100){
+			percentage-=actionDeque.shift();
+		}
 		state = nextframe(action);
 		var reward = 0;
-		//reward is 50% of score obtained + 25% of horizontal gap close + 25% of vertical gap close.
-		reward = (state[7]*0.9) + (Math.abs(state[1]-state[0])*0.01);
-		if(action == 0){
-			percentage = percentage -1;
-		}else{
-			percentage = percentage +1;
-		}
-		console.log("reward for step "+step+" is : "+reward+" action is: "+action+" percentage : "+percentage);
-		if(state[6] == true){	//game over. negative reward and restet game state.
-			console.log("game over. starting over");
-			reward = -1000;
+		if(state[6] == 1){	//game over. negative reward and restet game state.
+			reward = -10;
 			resetgamestate();
 			isPaused = false;
+			generation += 1;
+			oldScore = 0;
+			actionDeque = [];
+			percentage = 0;
+		}else{
+			reward = 0.1;
+			if(state[7] > oldScore){
+				reward = 10;
+				oldScore = state[7]; 
+			}
 		}
 		step = step+1;
 		agent.learn(reward); // the agent improves its Q,policy,model, etc. reward is a float
+
+		globalctx.fillText("step: "+step,40,50);
+		globalctx.fillText("reward: "+reward,40,60);
+		globalctx.fillText("action: "+action,40,70);
+		globalctx.fillText("action percentage: "+percentage,40,80);
+		globalctx.fillText("action history: "+actionDeque,40,90);
 	}, 0);
 }
