@@ -1005,6 +1005,7 @@ DQNAgent.prototype = {
     // on top of Mats, but for now sticking with this
     this.net = {};
     this.net.W1 = new R.RandMat(this.nh, this.ns, 0, 0.01);
+    console.log("constructor", this.nh, this.ns, this.net);
     this.net.b1 = new R.Mat(this.nh, 1, 0, 0.01);
     this.net.W2 = new R.RandMat(this.na, this.nh, 0, 0.01);
     this.net.b2 = new R.Mat(this.na, 1, 0, 0.01);
@@ -1056,6 +1057,7 @@ DQNAgent.prototype = {
       var a = randi(0, this.na);
     } else {
       // greedy wrt Q function
+      //console.log("act", this.net);
       var amat = this.forwardQ(this.net, s, false);
       var a = R.maxi(amat.w); // returns index of argmax action
     }
@@ -1095,15 +1097,19 @@ DQNAgent.prototype = {
   },
   learnFromTuple: function(s0, a0, r0, s1, a1) {
     // want: Q(s,a) = r + gamma * max_a' Q(s',a')
-
+    //console.log("states", s0, a0, r0, s1, a1);
     // compute the target Q value
     var tmat = this.forwardQ(this.net, s1, false);
     var qmax = r0 + this.gamma * tmat.w[R.maxi(tmat.w)];
-
+    //console.log("maxQ",qmax);
+    globalctx.clearRect(35,100, 150, 20);
+    globalctx.fillText("maxQ: "+qmax,40,110);
+    //console.log("learn", this.net);
     // now predict
     var pred = this.forwardQ(this.net, s0, true);
 
     var tderror = pred.w[a0] - qmax;
+    //console.log("tderror",tderror);
     var clamp = this.tderror_clamp;
     if(Math.abs(tderror) > clamp) {  // huber loss to robustify
       if(tderror > clamp) tderror = clamp;

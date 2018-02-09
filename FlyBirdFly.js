@@ -5,10 +5,10 @@ var gravity = 0;
 
 //pipe state vairables
 var curCenter = 250;
-var pipeCenters = [250, 250, 250, 250];
+var pipeCenters = [100, 150, 200, 250];
 var pipeSpeed = 0;
 var pipeGap = 200;
-var pipeDisp = 500+pipeGap;
+var pipeDisp = 100+pipeGap;
 var pipeWidth = 60;
 var pipeHole = 90;
 
@@ -198,8 +198,11 @@ function printstatedata(){
 	ele.innerHTML = str;
 }
 
-function getdata(){
-	return [yPos, pipeCenters[0], pipeCenters[1], pipeCenters[2], pipeCenters[3], pipeDisp, isPaused? 1: 0, totalScore];
+function getdata(action){
+	if(!action){
+		action = 0;
+	}
+	return [yPos, pipeCenters[0], pipeCenters[1], pipeCenters[2], pipeCenters[3], pipeDisp, isPaused? 1: 0, totalScore, action];
 }
 
 function showtext(type, ctx){
@@ -219,19 +222,22 @@ function showtext(type, ctx){
 function resetgamestate(){
 	yPos = 250;
 	pipeSpeed = 5;
-	pipeDisp = 500+pipeGap;
+	pipeDisp = 100+pipeGap;
 	gravity = -0.6;
 	yAcc = 0;
-	pipeCenters = [250, 250, 250, 250];
+	pipeCenters = [100, 150, 200, 250];
 	totalScore = 0;
 }
 
 function nextframe(action){
 	if(action == 1){
+		// if(yAcc <= 0){
+		// 	yAcc = 10;
+		// }
 		yAcc = 10;
 	}
 	animate(globalctx);
-	return getdata().concat(action);
+	return getdata(action);
 }
 
 
@@ -254,14 +260,14 @@ env.getMaxNumActions = function() {
 // agent parameter spec to play with (this gets eval()'d on Agent reset)
 var spec = {}
 spec.update = 'qlearn'; // qlearn | sarsa
-spec.gamma = 0.99; // discount factor, [0, 1)
+spec.gamma = 0.9; // discount factor, [0, 1)
 spec.epsilon = 0.01; // initial epsilon for epsilon-greedy policy, [0, 1)
 spec.alpha = 0.05; // value function learning rate
-spec.experience_add_every = 2; // number of time steps before we add another experience to replay memory
-spec.experience_size = 1000; // size of experience
+spec.experience_add_every = 1; // number of time steps before we add another experience to replay memory
+spec.experience_size = 100; // size of experience
 spec.learning_steps_per_iteration = 5;
 spec.tderror_clamp = 1.0; // for robustness
-spec.num_hidden_units = 100 // number of neurons in hidden layer
+spec.num_hidden_units = 30 // number of neurons in hidden layer
 
 var agent = new RL.DQNAgent(env, spec); 
 
@@ -273,6 +279,7 @@ var oldScore = 0;
 function train(){
 	console.log("begun train");
 	var state = nextframe();
+	
 	setInterval(function(){ // start the learning loop
 		var action = agent.act(state); // get prediction from current state
 		actionDeque.push(action);
@@ -283,7 +290,7 @@ function train(){
 		state = nextframe(action);
 		var reward = 0;
 		if(state[6] == 1){	//game over. negative reward and restet game state.
-			reward = -10;
+			reward = -120;
 			resetgamestate();
 			isPaused = false;
 			generation += 1;
@@ -291,19 +298,28 @@ function train(){
 			actionDeque = [];
 			percentage = 0;
 		}else{
-			reward = 0.1;
+			reward = 1 - Math.abs(yPos - state[1])*0.1 + ((state[7]+1)*2 - state[5]*0.01);
 			if(state[7] > oldScore){
-				reward = 10;
+				reward += 10;
 				oldScore = state[7]; 
 			}
 		}
 		step = step+1;
-		agent.learn(reward); // the agent improves its Q,policy,model, etc. reward is a float
-
+		var maxQ = agent.learn(reward); // the agent improves its Q,policy,model, etc. reward is a float
+		globalctx.font = "10px Ariel";
 		globalctx.fillText("step: "+step,40,50);
 		globalctx.fillText("reward: "+reward,40,60);
+		
 		globalctx.fillText("action: "+action,40,70);
 		globalctx.fillText("action percentage: "+percentage,40,80);
 		globalctx.fillText("action history: "+actionDeque,40,90);
-	}, 0);
+	}, 10);
+}
+
+function tickact(){
+	var action = agent.act(nextframe());
+}
+
+function ticklearn(){
+	agent.learn(0.1);
 }
